@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Registro de productos (Standalone)</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: rgba(255, 255, 255, 0.06);
+      --text: rgba(255, 255, 255, 0.92);
+      --muted: rgba(255, 255, 255, 0.65);
+      --border: rgba(255, 255, 255, 0.14);
+      --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(900px 600px at 20% 10%, rgba(108, 99, 255, 0.18), transparent 60%),
+        radial-gradient(700px 500px at 80% 20%, rgba(54, 211, 153, 0.14), transparent 60%),
+        radial-gradient(900px 700px at 60% 90%, rgba(255, 108, 194, 0.10), transparent 65%),
+        var(--bg);
+      color: var(--text);
+    }
+    .container { max-width: 860px; margin: 0 auto; padding: 48px 20px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    p { margin: 0 0 18px; color: var(--muted); }
+    .row { display: flex; gap: 12px; align-items: stretch; }
+    .field { flex: 1; position: relative; }
+    input {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      padding: 12px 12px;
+      outline: none;
+      font-size: 15px;
+    }
+    button {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: rgba(255, 255, 255, 0.16); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .suggestions {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      border-radius: 12px;
+      background: rgba(14, 18, 34, 0.95);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      max-height: 260px;
+      overflow-y: auto;
+      z-index: 10;
+      display: none;
+    }
+    .suggestion {
+      padding: 10px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .suggestion:last-child { border-bottom: 0; }
+    .suggestion:hover { background: rgba(255, 255, 255, 0.08); }
+    .status {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+    .small { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.4; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="card">
+      <h1>Registro de productos (Standalone)</h1>
+      <p>
+        Esto es un <b>HTML único</b> (sin Next). Si de verdad te piden un solo archivo,
+        puedes usar este. Si no, usa la app en Next.js (app/page.js).
+      </p>
+
+      <div class="row">
+        <div class="field" id="field">
+          <input id="input" placeholder="Ej. Coca Cola 355ml" autocomplete="off" />
+          <div class="suggestions" id="suggestions"></div>
+        </div>
+        <button id="btn">Registrar</button>
+      </div>
+
+      <div id="status" class="status" style="display:none"></div>
+
+      <div class="small">
+        Configura tu endpoint aquí dentro del archivo (variable <span class="code">GOOGLE_SCRIPT_URL</span>).
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Pega aquí tu URL del Web App de Apps Script
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/XXXXXXXXXXXX/exec';
+
+    const PRODUCTOS = [
+      'Coca Cola 355ml',
+      'Coca Cola Sin Azúcar 355ml',
+      'Pepsi 355ml',
+      'Agua Natural 600ml',
+      'Agua Mineral 600ml',
+      'Jugo Naranja 1L',
+      'Leche Entera 1L',
+      'Pan Blanco'
+    ];
+
+    const input = document.getElementById('input');
+    const sugg = document.getElementById('suggestions');
+    const status = document.getElementById('status');
+    const btn = document.getElementById('btn');
+    const field = document.getElementById('field');
+
+    const norm = (s) => (s || '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim();
+
+    const render = (items) => {
+      if (!items.length) {
+        sugg.style.display = 'none';
+        sugg.innerHTML = '';
+        return;
+      }
+      sugg.style.display = 'block';
+      sugg.innerHTML = items.map((x) => `<div class="suggestion" data-value="${escapeHtml(x)}">${escapeHtml(x)}</div>`).join('');
+    };
+
+    const escapeHtml = (str) => String(str)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+
+    const getSuggestions = (q) => {
+      const qq = norm(q);
+      if (!qq) return [];
+      return PRODUCTOS.filter((p) => norm(p).includes(qq)).slice(0, 10);
+    };
+
+    input.addEventListener('input', () => render(getSuggestions(input.value)));
+    input.addEventListener('focus', () => render(getSuggestions(input.value)));
+
+    sugg.addEventListener('mousedown', (e) => {
+      const target = e.target;
+      if (target && target.dataset && target.dataset.value) {
+        e.preventDefault();
+        input.value = target.dataset.value;
+        render([]);
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!field.contains(e.target)) render([]);
+    });
+
+    const setStatus = (txt) => {
+      status.style.display = 'block';
+      status.textContent = txt;
+    };
+
+    async function readSmart(res) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) return await res.json();
+      const t = await res.text();
+      try { return JSON.parse(t); } catch { return t; }
+    }
+
+    btn.addEventListener('click', async () => {
+      const producto = input.value.trim();
+      if (!producto) return setStatus('Escribe o selecciona un producto antes de registrar.');
+      if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes('XXXXXXXX')) {
+        return setStatus('Configura GOOGLE_SCRIPT_URL en este HTML.');
+      }
+
+      btn.disabled = true;
+      setStatus('Enviando...');
+
+      try {
+        const payload = {
+          producto,
+          fechaISO: new Date().toISOString(),
+          fuente: 'standalone-html'
+        };
+
+        const res = await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          mode: 'cors'
+        });
+
+        const data = await readSmart(res);
+        if (!res.ok) {
+          throw new Error(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+        }
+
+        setStatus('✅ Registrado correctamente.\n\nRespuesta del API:\n' + (typeof data === 'string' ? data : JSON.stringify(data, null, 2)));
+      } catch (err) {
+        setStatus('❌ Error registrando:\n' + (err && err.message ? err.message : String(err)));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
