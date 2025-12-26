@@ -1,7 +1,8 @@
 "use client";
-import $, { type } from "jquery";
+import $ from "jquery";
 
-import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 async function readResponseSmart(res) {
 	const contentType = res.headers.get("content-type") || "";
@@ -21,6 +22,8 @@ export default function LoginPage() {
 	const [password, setPassword] = useState("");
 	const [status, setStatus] = useState("");
 	const [loading, setLoading] = useState(false);
+
+	const router = useRouter();
 
 	const authUrl = process.env.NEXT_PUBLIC_AUTH_URL;
 
@@ -69,25 +72,35 @@ export default function LoginPage() {
 			},
 		};
 
-		$.ajax(settings).done(function (response) {
-			console.log(response);
-			const token = response?.token || response?.access_token;
-			if (token && typeof window !== "undefined") {
-				localStorage.setItem("auth_token", token);
-				document.cookie = `auth_token=${token}; path=/`;
-			}
-			setStatus(
-				"✅ Sesión iniciada correctamente.\n\n" +
-					"Respuesta del API:\n" +
-					(typeof response === "string"
-						? response
-						: JSON.stringify(response, null, 2)) +
-					(token
-						? '\n\nEl token se guardó en localStorage y cookie "auth_token".'
-						: "")
-			);
-			setLoading(false);
-		});
+		$.ajax(settings)
+			.done(function (response) {
+				console.log(response);
+				const token = response?.token || response?.access_token;
+				if (token && typeof window !== "undefined") {
+					localStorage.setItem("auth_token", token);
+					document.cookie = `auth_token=${token}; path=/`;
+				}
+				setStatus(
+					"✅ Sesión iniciada correctamente.\n\n" +
+						"Respuesta del API:\n" +
+						(typeof response === "string"
+							? response
+							: JSON.stringify(response, null, 2)) +
+						(token
+							? '\n\nEl token se guardó en localStorage y cookie "auth_token".'
+							: "")
+				);
+				if (response?.ok === true) {
+					router.push("/");
+				}
+			})
+			.fail(function (xhr, _status, error) {
+				const msg = xhr?.responseText || error || "Error autenticando";
+				setStatus("❌ Error autenticando:\n" + msg);
+			})
+			.always(function () {
+				setLoading(false);
+			});
 		// $.ajax({
 		// 	url: authUrl,
 		// 	type: "POST",
