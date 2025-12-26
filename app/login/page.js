@@ -1,6 +1,7 @@
 "use client";
+import $, { type } from "jquery";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 async function readResponseSmart(res) {
 	const contentType = res.headers.get("content-type") || "";
@@ -46,52 +47,74 @@ export default function LoginPage() {
 			setStatus("Completa correo y contraseña antes de continuar.");
 			return;
 		}
-
 		if (!authUrl) {
 			setStatus(
-				"Falta configurar NEXT_PUBLIC_AUTH_URL. Revisa el archivo .env.local (ver README)."
+				"Falta configurar NEXT_PUBLIC_AUTH_URL. Revisa el archivo .env.local."
 			);
 			return;
 		}
 
 		setLoading(true);
 		setStatus("Enviando credenciales...");
+		const username = email;
+		const settings = {
+			url: authUrl,
+			type: "POST",
+			data: JSON.stringify({ username, password }),
+			success: function () {
+				// resolve()
+			},
+			error: function () {
+				// reject();
+			},
+		};
 
-		try {
-			const res = await fetch(authUrl, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ email, password }),
-			});
-
-			const data = await readResponseSmart(res);
-
-			if (!res.ok) {
-				throw new Error(
-					typeof data === "string" ? data : JSON.stringify(data, null, 2)
-				);
-			}
-
-			const token = data?.token || data?.access_token;
-
+		$.ajax(settings).done(function (response) {
+			console.log(response);
+			const token = response?.token || response?.access_token;
 			if (token && typeof window !== "undefined") {
 				localStorage.setItem("auth_token", token);
 				document.cookie = `auth_token=${token}; path=/`;
 			}
-
 			setStatus(
 				"✅ Sesión iniciada correctamente.\n\n" +
 					"Respuesta del API:\n" +
-					(typeof data === "string" ? data : JSON.stringify(data, null, 2)) +
+					(typeof response === "string"
+						? response
+						: JSON.stringify(response, null, 2)) +
 					(token
 						? '\n\nEl token se guardó en localStorage y cookie "auth_token".'
 						: "")
 			);
-		} catch (err) {
-			setStatus("❌ Error autenticando:\n" + (err?.message || String(err)));
-		} finally {
 			setLoading(false);
-		}
+		});
+		// $.ajax({
+		// 	url: authUrl,
+		// 	type: "POST",
+
+		// 	contentType: "application/json; charset=utf-8",
+		// 	dataType: "json", // o "text" si tu API no devuelve JSON
+		// 	success: (data) => {
+		// 		const token = data?.token || data?.access_token;
+		// 		if (token && typeof window !== "undefined") {
+		// 			localStorage.setItem("auth_token", token);
+		// 			document.cookie = `auth_token=${token}; path=/`;
+		// 		}
+		// 		setStatus(
+		// 			"✅ Sesión iniciada correctamente.\n\n" +
+		// 				"Respuesta del API:\n" +
+		// 				(typeof data === "string" ? data : JSON.stringify(data, null, 2)) +
+		// 				(token
+		// 					? '\n\nEl token se guardó en localStorage y cookie "auth_token".'
+		// 					: "")
+		// 		);
+		// 	},
+		// 	error: (xhr, _status, error) => {
+		// 		const msg = xhr?.responseText || error || "Error autenticando";
+		// 		setStatus("❌ Error autenticando:\n" + msg);
+		// 	},
+		// 	complete: () => setLoading(false),
+		// });
 	};
 
 	return (
